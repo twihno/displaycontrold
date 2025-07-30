@@ -5,15 +5,17 @@ A small library and cli application for controlling displays that provide a RS-2
 ## Usage
 
 ```text
-Usage: display-serial-controller [OPTIONS] --command <COMMAND> --value <VALUE>
+Usage: display-serial-controller [OPTIONS] --display-type <DISPLAY_TYPE> --command <COMMAND> --value <VALUE>
 
 Options:
-  -p, --provider <PROVIDER>      [default: /dev/ttyUSB0]
-  -m, --monitor-id <MONITOR_ID>  [default: 0]
+  -p, --port <PORT>                  [default: /dev/ttyUSB0]
+  -b, --baud-rate <BAUD_RATE>        [default: 9600]
+  -m, --monitor-id <MONITOR_ID>      [default: 0]
+  -d, --display-type <DISPLAY_TYPE>
   -c, --command <COMMAND>
   -v, --value <VALUE>
-  -h, --help                     Print help
-  -V, --version                  Print version
+  -h, --help                         Print help
+  -V, --version                      Print version
 ```
 
 ## Work in Progress

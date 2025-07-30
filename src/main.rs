@@ -14,6 +14,8 @@ struct CliParams {
     #[arg(short, long, default_value = "0")]
     monitor_id: u8,
     #[arg(short, long)]
+    display_type: String,
+    #[arg(short, long)]
     command: String,
     #[arg(short, long)]
     value: String,
@@ -28,7 +30,7 @@ fn main() {
     port.set_timeout(std::time::Duration::from_secs(1))
         .expect("Failed to set timeout");
 
-    match args.port.as_str() {
+    match args.display_type.as_str() {
         "iiyama" => {
             if let Some(function) = iiyama::SetRequestFunction::from_cli(&args.command, &args.value)
             {
@@ -39,6 +41,6 @@ fn main() {
                 eprintln!("Invalid command or value");
             }
         }
-        _ => eprintln!("Unsupported provider: {}", args.port),
+        _ => eprintln!("Unsupported display type: {}", args.display_type),
     }
 }
