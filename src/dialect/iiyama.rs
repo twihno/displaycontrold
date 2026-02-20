@@ -1,58 +1,14 @@
 use std::net::{IpAddr, TcpStream};
 
 use serialport::SerialPort;
-use thiserror::Error;
 
-use crate::common::{self, FunctionConversionError};
-
-#[derive(Debug)]
-/// Represents the underlying connection used to communicate with the display
-///
-/// The options in case of an iiyama display are RS-232 (serial) and TCP/IP.
-enum ConnectionType {
-    Serial(Box<dyn SerialPort>),
-    Tcp(TcpStream),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum SerialBaudrate {
-    B1200 = 1200,
-    B2400 = 2400,
-    B4800 = 4800,
-    #[default]
-    B9600 = 9600,
-    B19200 = 19200,
-    B38400 = 38400,
-    B57600 = 57600,
-}
-
-#[derive(Debug, Error)]
-pub enum SerialBaudrateError {
-    #[error("Unsupported baudrate")]
-    UnsupportedBaudrate,
-}
-
-impl TryFrom<u32> for SerialBaudrate {
-    type Error = SerialBaudrateError;
-
-    /// Try to convert a u32 value into a SerialBaudrate
-    ///
-    /// # Errors
-    /// Returns [`SerialBaudrateError::UnsupportedBaudrate`]
-    /// if the value doesn't match a supported baudrate.
-    fn try_from(value: u32) -> Result<Self, Self::Error> {
-        match value {
-            1200 => Ok(SerialBaudrate::B1200),
-            2400 => Ok(SerialBaudrate::B2400),
-            4800 => Ok(SerialBaudrate::B4800),
-            9600 => Ok(SerialBaudrate::B9600),
-            19200 => Ok(SerialBaudrate::B19200),
-            38400 => Ok(SerialBaudrate::B38400),
-            57600 => Ok(SerialBaudrate::B57600),
-            _ => Err(SerialBaudrateError::UnsupportedBaudrate),
-        }
-    }
-}
+use crate::{
+    common::{self, FunctionConversionError},
+    connection::{
+        ConnectionType, SerialBaudrate, SerialConnectionParameters, SerialPortConnectionError,
+        TcpConnectionParameters,
+    },
+};
 
 #[derive(Debug)]
 pub struct IiyamaDisplayController {
@@ -65,18 +21,17 @@ impl IiyamaDisplayController {
         port_name: &str,
         baud_rate: SerialBaudrate,
         timeout: u64,
-    ) -> serialport::Result<Self> {
-        let mut port = serialport::new(port_name, baud_rate as u32).open()?;
-
-        // Package format according to official documentation
-        port.set_data_bits(serialport::DataBits::Eight)?;
-        port.set_parity(serialport::Parity::None)?;
-        port.set_stop_bits(serialport::StopBits::One)?;
-        port.set_flow_control(serialport::FlowControl::None)?;
-
-        port.set_timeout(std::time::Duration::from_secs(timeout))?;
-
-        port.clear(serialport::ClearBuffer::All)?;
+    ) -> Result<Self, SerialPortConnectionError> {
+        let port = SerialConnectionParameters::new(
+            Some(port_name.into()),
+            Some(baud_rate),
+            Some(serialport::DataBits::Eight),
+            Some(serialport::StopBits::One),
+            Some(serialport::Parity::None),
+            Some(serialport::FlowControl::None),
+            Some(std::time::Duration::from_secs(timeout)),
+        )
+        .connect()?;
 
         Ok(Self {
             connection: ConnectionType::Serial(port),
@@ -88,29 +43,14 @@ impl IiyamaDisplayController {
     /// # Defaults
     /// - Baudrate: 9600
     /// - Timeout: 5 seconds
-    pub fn new_serial_with_defaults(port_name: &str) -> serialport::Result<Self> {
+    pub fn new_serial_with_defaults(port_name: &str) -> Result<Self, SerialPortConnectionError> {
         Self::new_serial(port_name, SerialBaudrate::default(), 5)
     }
 
-    /// Create a new [`IiyamaDisplayController`] with a serial connection from an existing [`SerialPort`]
-    pub fn new_serial_from_existing_port(
-        mut port: Box<dyn SerialPort>,
-    ) -> serialport::Result<Self> {
-        // Ensure relevant settings are set
-        port.set_data_bits(serialport::DataBits::Eight)?;
-        port.set_parity(serialport::Parity::None)?;
-        port.set_stop_bits(serialport::StopBits::One)?;
-        port.set_flow_control(serialport::FlowControl::None)?;
-
-        port.clear(serialport::ClearBuffer::All)?;
-
-        Ok(Self {
-            connection: ConnectionType::Serial(port),
-        })
-    }
-
     pub fn new_tcp(ip: &IpAddr) -> std::io::Result<Self> {
-        let stream = TcpStream::connect((*ip, 5000))?;
+        let config =
+            TcpConnectionParameters::new(*ip, 5000, Some(std::time::Duration::from_secs(10)));
+        let stream = config.connect()?;
 
         Ok(Self {
             connection: ConnectionType::Tcp(stream),

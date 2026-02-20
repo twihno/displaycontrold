@@ -1,46 +1,90 @@
-use clap::Parser;
-use display_serial_controller::iiyama;
+use clap::{Parser, Subcommand};
+use displaycontrold::{ReadSettings, WriteSettings};
+use serde::de::DeserializeOwned;
 
 #[derive(Debug, Clone, Parser)]
 #[command(version, about, long_about = None)]
-struct CliParams {
-    #[arg(short, long, default_value = "/dev/ttyUSB0")]
-    port: String,
-    #[arg(short, long, default_value = "9600")]
-    baud_rate: u32,
-    #[arg(short, long, default_value = "0")]
-    monitor_id: u8,
-    #[arg(short, long)]
-    display_type: String,
-    #[arg(short, long)]
-    command: String,
-    #[arg(short, long)]
-    value: Option<String>,
-    #[arg(short, long)]
-    software_serial_protocol: Option<bool>,
+struct Args {
+    #[command(subcommand)]
+    mode: OperationMode,
+}
+
+#[derive(Debug, Clone, PartialEq, Subcommand)]
+/// Currently two operation modes are supported:
+/// - `get`: Retrieve the current state/settings of all provided displays
+/// - `set`: Apply the provided settings to the displays
+enum OperationMode {
+    /// Read the current display state/settings
+    Get {
+        #[arg(long)]
+        config_file: Option<String>,
+        #[arg(short, long)]
+        config: Option<String>,
+    },
+    /// Apply the provided settings to the displays
+    Set {
+        #[arg(long)]
+        config_file: Option<String>,
+        #[arg(short, long)]
+        config: Option<String>,
+    },
+}
+
+/// Retrieve the config: 1. file, 2. string
+fn try_get_config(config_file: Option<String>, config_str: Option<String>) -> Option<String> {
+    if let Some(file_path) = config_file {
+        match std::fs::read_to_string(file_path) {
+            Ok(content) => Some(content),
+            Err(e) => {
+                eprintln!("Failed to read the configuration file: {}", e);
+                None
+            }
+        }
+    } else if let Some(config_str) = config_str {
+        Some(config_str)
+    } else {
+        eprintln!("No configuration provided. Use --config-file or --config.");
+        None
+    }
+}
+
+/// Actually try to parse the configuration from the provided string/file content
+fn try_parse_config<T: DeserializeOwned>(config_str: &str) -> Option<T> {
+    match serde_json::from_str::<T>(config_str) {
+        Ok(config) => Some(config),
+        Err(e) => {
+            eprintln!("Failed to parse the configuration: {}", e);
+            None
+        }
+    }
 }
 
 fn main() {
-    let args = CliParams::parse();
+    let args = Args::parse();
 
-    let mut port = serialport::new(&args.port, args.baud_rate)
-        .open()
-        .expect("Failed to open port");
-    port.set_timeout(std::time::Duration::from_secs(1))
-        .expect("Failed to set timeout");
-
-    port.clear(serialport::ClearBuffer::All)
-        .expect("Failed to clear port buffers");
-
-    match args.display_type.as_str() {
-        "iiyama" => {
-            if let Ok(function) = iiyama::SetCommand::from_str(&args.command, &args.value.unwrap())
-            {
-                iiyama::set(args.monitor_id, function, &mut port);
-            } else {
-                eprintln!("Invalid command or value");
-            }
+    match args.mode {
+        OperationMode::Get {
+            config_file,
+            config,
+        } => {
+            let Some(config_str) = try_get_config(config_file, config) else {
+                return;
+            };
+            let Some(config) = try_parse_config::<Vec<ReadSettings>>(&config_str) else {
+                return;
+            };
+            println!("{config:?}");
         }
-        _ => eprintln!("Unsupported display type: {}", args.display_type),
+        OperationMode::Set {
+            config_file,
+            config,
+        } => {
+            let Some(config_str) = try_get_config(config_file, config) else {
+                return;
+            };
+            let Some(config) = try_parse_config::<Vec<WriteSettings>>(&config_str) else {
+                return;
+            };
+        }
     }
 }
