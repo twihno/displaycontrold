@@ -11,11 +11,12 @@ pub mod connection;
 pub mod controller;
 pub mod dialect;
 
+#[must_use]
 pub fn get_screen_label_prefix(label: &Option<String>, screen_number: usize) -> String {
-    label
-        .as_ref()
-        .map(|l| format!("Screen \"{l}\": "))
-        .unwrap_or_else(|| format!("Screen {screen_number}: "))
+    label.as_ref().map_or_else(
+        || format!("Screen {screen_number}: "),
+        |l| format!("Screen \"{l}\": "),
+    )
 }
 
 #[derive(Debug, Deserialize)]
@@ -35,7 +36,7 @@ pub struct WriteUserSettings {
 }
 
 pub fn apply_settings(settings: Vec<WriteUserSettings>) {
-    if settings.len() == 0 {
+    if settings.is_empty() {
         eprintln!("No settings provided to apply.");
         exit(0);
     }
@@ -106,19 +107,19 @@ pub fn apply_settings(settings: Vec<WriteUserSettings>) {
                     e
                 );
                 return;
-            };
+            }
         }));
     }
 
     for thread in control_threads {
         if let Err(e) = thread.join() {
-            eprintln!("A control thread panicked: {:?}", e);
+            eprintln!("A control thread panicked: {e:?}");
         }
     }
 }
 
 fn get_settings(settings: Vec<ReadUserSettings>) {
-    if settings.len() == 0 {
+    if settings.is_empty() {
         eprintln!("No settings provided to apply.");
         exit(0);
     }
@@ -131,7 +132,7 @@ fn get_settings(settings: Vec<ReadUserSettings>) {
 
     for thread in control_threads {
         if let Err(e) = thread.join() {
-            eprintln!("A control thread panicked: {:?}", e);
+            eprintln!("A control thread panicked: {e:?}");
         }
     }
 }

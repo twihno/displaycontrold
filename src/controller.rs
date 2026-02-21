@@ -17,10 +17,12 @@ pub struct RequestedSetting {
 }
 
 impl RequestedSetting {
+    #[must_use] 
     pub fn get_name(&self) -> &str {
         &self.name
     }
 
+    #[must_use] 
     pub fn get_value(&self) -> &serde_json::Value {
         &self.value
     }
@@ -38,10 +40,12 @@ impl SettingEntry {
         Self { name, value }
     }
 
+    #[must_use] 
     pub fn get_name(&self) -> &str {
         &self.name
     }
 
+    #[must_use] 
     pub fn get_value(&self) -> &serde_json::Value {
         &self.value
     }

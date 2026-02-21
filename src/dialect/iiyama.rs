@@ -103,7 +103,7 @@ impl DisplayController for IiyamaController {
                 None,
                 timeout.map(std::time::Duration::from_millis), // Timeout default enforced by new function
             ))
-            .map_err(|e| ConnectionError::SerialConnectionError(e)),
+            .map_err(ConnectionError::SerialConnectionError),
 
             UserConnectionSettings::Tcp { ip, port, timeout } => {
                 Self::new_tcp(&TcpConnectionParameters::new(
@@ -111,7 +111,7 @@ impl DisplayController for IiyamaController {
                     port,
                     timeout.map(std::time::Duration::from_millis), // Timeout default enforced by new function
                 ))
-                .map_err(|e| ConnectionError::TcpConnectionError(e))
+                .map_err(ConnectionError::TcpConnectionError)
             }
         }
     }
@@ -688,7 +688,7 @@ impl RequestPackage {
 
         let data = vec![function_code]
             .into_iter()
-            .chain(data.as_ref().map_or(vec![], |d| d.clone()))
+            .chain(data.as_ref().map_or(vec![], std::clone::Clone::clone))
             .collect::<Vec<u8>>();
 
         let checksum = 0xa6 ^ monitor_id ^ length ^ 0x01 ^ data.iter().fold(0, |acc, &b| acc ^ b);

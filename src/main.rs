@@ -36,7 +36,7 @@ fn try_get_config(config_file: Option<String>, config_str: Option<String>) -> Op
         match std::fs::read_to_string(file_path) {
             Ok(content) => Some(content),
             Err(e) => {
-                eprintln!("Failed to read the configuration file: {}", e);
+                eprintln!("Failed to read the configuration file: {e}");
                 None
             }
         }
@@ -53,7 +53,7 @@ fn try_parse_config<T: DeserializeOwned>(config_str: &str) -> Option<T> {
     match serde_json::from_str::<T>(config_str) {
         Ok(config) => Some(config),
         Err(e) => {
-            eprintln!("Failed to parse the configuration: {}", e);
+            eprintln!("Failed to parse the configuration: {e}");
             None
         }
     }

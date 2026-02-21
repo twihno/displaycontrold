@@ -123,6 +123,7 @@ impl SerialConnectionParameters {
         }
     }
 
+    #[must_use]
     pub fn is_valid_baud_rate(&self, allowed_values: &[SerialBaudrate]) -> bool {
         allowed_values.contains(&self.baud_rate)
     }
@@ -131,7 +132,7 @@ impl SerialConnectionParameters {
     pub fn connect(&self) -> Result<Box<dyn SerialPort>, SerialPortConnectionError> {
         let mut port = serialport::new(&self.port, self.baud_rate as u32)
             .open()
-            .map_err(|err| SerialPortConnectionError::OpenError(err))?;
+            .map_err(SerialPortConnectionError::OpenError)?;
 
         if let Some(data_bits) = self.data_bits {
             // TODO: add debug logging
@@ -246,7 +247,7 @@ pub enum SerialBaudrateError {
 impl TryFrom<u32> for SerialBaudrate {
     type Error = SerialBaudrateError;
 
-    /// Try to convert a u32 value into a SerialBaudrate
+    /// Try to convert a u32 value into a [`SerialBaudrate`]
     ///
     /// # Errors
     /// Returns [`SerialBaudrateError::UnsupportedBaudrate`]
