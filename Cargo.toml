@@ -6,6 +6,10 @@ authors = ["Thomas Schuster <twihno@gmail.com>"]
 description = "A small application to control displays via a serial interface."
 license = "Mozilla Public License 2.0 (MPL-2.0)"
 
+[lints.clippy]
+pedantic = "forbid"
+
+
 [dependencies]
 clap = { version = "4.5.47", features = [
   "color",

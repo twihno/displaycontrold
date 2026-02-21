@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use displaycontrold::{ReadSettings, WriteSettings};
+use displaycontrold::{ReadUserSettings, WriteUserSettings};
 use serde::de::DeserializeOwned;
 
 #[derive(Debug, Clone, Parser)]
@@ -70,7 +70,7 @@ fn main() {
             let Some(config_str) = try_get_config(config_file, config) else {
                 return;
             };
-            let Some(config) = try_parse_config::<Vec<ReadSettings>>(&config_str) else {
+            let Some(config) = try_parse_config::<Vec<ReadUserSettings>>(&config_str) else {
                 return;
             };
             println!("{config:?}");
@@ -82,7 +82,7 @@ fn main() {
             let Some(config_str) = try_get_config(config_file, config) else {
                 return;
             };
-            let Some(config) = try_parse_config::<Vec<WriteSettings>>(&config_str) else {
+            let Some(config) = try_parse_config::<Vec<WriteUserSettings>>(&config_str) else {
                 return;
             };
         }

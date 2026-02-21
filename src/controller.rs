@@ -1,16 +1,40 @@
-use std::collections::HashMap;
-
 use serde::Deserialize;
+use thiserror::Error;
 
-#[derive(Debug, Clone, Deserialize)]
-pub struct UntypedSettingEntry {
-    name: String,
-    value: String,
+use crate::connection::{ConnectionError, UserConnectionSettings};
+
+#[derive(Debug, Deserialize)]
+pub struct TimeFilter {
+    start: String,
+    end: String,
 }
 
-impl UntypedSettingEntry {
+#[derive(Debug, Deserialize)]
+pub struct RequestedSetting {
+    name: String,
+    value: serde_json::Value,
+    time_filter: Option<TimeFilter>,
+}
+
+impl RequestedSetting {
+    pub fn get_name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn get_value(&self) -> &serde_json::Value {
+        &self.value
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct SettingEntry {
+    name: String,
+    value: serde_json::Value,
+}
+
+impl SettingEntry {
     #[must_use]
-    pub fn new(name: String, value: String) -> Self {
+    pub fn new(name: String, value: serde_json::Value) -> Self {
         Self { name, value }
     }
 
@@ -18,49 +42,8 @@ impl UntypedSettingEntry {
         &self.name
     }
 
-    pub fn get_value(&self) -> &str {
+    pub fn get_value(&self) -> &serde_json::Value {
         &self.value
-    }
-}
-
-/// A single value of a display setting
-#[derive(Debug, Clone, PartialEq)]
-pub enum SettingValue {
-    Integer(i32),
-    Float(f32),
-    Boolean(bool),
-    String(String),
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct SettingEntry {
-    name: String,
-    value: SettingValue,
-    immutable: bool,
-}
-
-impl SettingEntry {
-    #[must_use]
-    pub fn new(name: String, value: SettingValue, immutable: bool) -> Self {
-        Self {
-            name,
-            value,
-            immutable,
-        }
-    }
-
-    pub fn get_name(&self) -> &str {
-        &self.name
-    }
-
-    pub fn get_value(&self) -> &SettingValue {
-        &self.value
-    }
-
-    pub fn try_set_value(&mut self, new_value: SettingValue) {
-        if !self.immutable {
-            self.value = new_value;
-        }
     }
 }
 
@@ -73,7 +56,7 @@ pub struct ValueDiff<T> {
 #[derive(Debug, Clone)]
 pub enum SettingValueDiff {
     Unchanged,
-    Changed(ValueDiff<SettingValue>),
+    Changed(ValueDiff<serde_json::Value>),
 }
 
 #[derive(Debug, Clone)]
@@ -82,51 +65,83 @@ pub struct SettingDiff {
     value_diff: SettingValueDiff,
 }
 
-/// The common interface for all manufacturer-specific implementations for the communication with the display.
-pub trait DisplayController {
-    /// Retrieves the current settings of the display.
-    fn get_settings(&self) -> Result<HashMap<String, SettingEntry>, String>; // TODO: Change return type 
-
-    /// Sets a single setting of the display and returns the difference between the old and new value.
-    fn set_single_setting(&mut self, name: &str, value: String) -> Result<SettingDiff, String>; // TODO: Change return type
-
-    fn apply_settings(&mut self, settings: HashMap<String, SettingEntry>) -> Result<(), String> {
-        Ok(())
-    }
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+pub enum AddSettingsError {
+    #[error("Unknown command")]
+    UnknownSetting,
+    #[error("Invalid value: {0}")]
+    InvalidValue(String),
+    #[error("Invalid type for value, expected: {0}")]
+    InvalidType(&'static str),
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+pub enum ExecuteSettingsError {
+    #[error("Communication error: {0}")]
+    CommunicationError(std::io::ErrorKind),
+    #[error("Setting unavailable: {0}")]
+    SettingUnavailable(String),
+    #[error("Failed setting: {0}")]
+    FailedSetting(serde_json::Value),
+}
 
-    #[test]
-    fn test_simple_setting_entry() {
-        let mut entry =
-            SettingEntry::new("brightness".to_string(), SettingValue::Integer(50), false);
-        assert_eq!(entry.get_name(), "brightness");
-        assert_eq!(entry.get_value(), &SettingValue::Integer(50));
+/// The common interface for all manufacturer-specific implementations for the communication with the display.
+pub trait DisplayController {
+    #[must_use]
+    fn new_and_connect(
+        connection_settings: UserConnectionSettings,
+    ) -> Result<Self, ConnectionError>
+    where
+        Self: Sized;
 
-        entry.try_set_value(SettingValue::Integer(70));
-        assert_eq!(entry.get_value(), &SettingValue::Integer(70));
-    }
+    /// Try to parse the requested setting.
+    /// E.g also check if the setting exists for this manufactured (not yet for this model) and if the value is of the correct type, ...
+    fn add_write_setting_request(
+        &mut self,
+        name: &str,
+        value: &serde_json::Value,
+    ) -> Result<(), AddSettingsError>;
 
-    #[test]
-    fn test_immutable_setting_entry() {
-        let mut immutable_entry = SettingEntry::new(
-            "serial_number".to_string(),
-            SettingValue::String("12345".to_string()),
-            true,
-        );
-        assert_eq!(immutable_entry.get_name(), "serial_number");
-        assert_eq!(
-            immutable_entry.get_value(),
-            &SettingValue::String("12345".to_string())
-        );
+    /// Add a single setting to the read queue, so that it can be fetched with [`Self::fetch_read_settings`]
+    fn add_read_setting_request(&mut self, name: &str) -> Result<(), AddSettingsError>;
 
-        immutable_entry.try_set_value(SettingValue::String("54321".to_string()));
-        assert_eq!(
-            immutable_entry.get_value(),
-            &SettingValue::String("12345".to_string())
-        );
-    }
+    /// Add all known settings for this display to the read queue, so that they can be fetched with [`Self::fetch_read_settings`]
+    fn add_complete_read_settings_request(&mut self) -> Result<(), AddSettingsError>;
+
+    fn fetch_read_settings(&mut self) -> Result<SettingEntry, ExecuteSettingsError>;
+
+    fn apply_write_settings(
+        &mut self,
+        validate: bool,
+        get_diff: bool,
+    ) -> Result<Option<Vec<SettingDiff>>, ExecuteSettingsError>;
+    //  {
+    //     let mut diffs = Vec::new();
+
+    //     for requested_setting in requested_settings {
+    //         let diff = self.set_single_setting(
+    //             &requested_setting.name,
+    //             &requested_setting.value,
+    //             get_diff,
+    //         )?;
+    //         if let Some(diff) = diff {
+    //             diffs.push(diff);
+    //         }
+
+    //         if validate {
+    //             let current_setting = self.add_read_setting_request(&requested_setting.name)?;
+
+    //             if current_setting.get_value() != requested_setting.get_value() {
+    //                 return Err(SettingsError::ValidationError(format!(
+    //                     "Validation failed for setting '{}': expected value {:?}, got {:?}",
+    //                     requested_setting.name,
+    //                     requested_setting.value,
+    //                     current_setting.get_value()
+    //                 )));
+    //             }
+    //         }
+    //     }
+
+    //     if get_diff { Ok(Some(diffs)) } else { Ok(None) }
+    // }
 }
