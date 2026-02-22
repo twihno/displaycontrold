@@ -17,12 +17,12 @@ pub struct RequestedSetting {
 }
 
 impl RequestedSetting {
-    #[must_use] 
+    #[must_use]
     pub fn get_name(&self) -> &str {
         &self.name
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn get_value(&self) -> &serde_json::Value {
         &self.value
     }
@@ -40,12 +40,12 @@ impl SettingEntry {
         Self { name, value }
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn get_name(&self) -> &str {
         &self.name
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn get_value(&self) -> &serde_json::Value {
         &self.value
     }
@@ -60,6 +60,7 @@ pub struct ValueDiff<T> {
 #[derive(Debug, Clone)]
 pub enum SettingValueDiff {
     Unchanged,
+    NotVerifiable,
     Changed(ValueDiff<serde_json::Value>),
 }
 
@@ -116,8 +117,7 @@ pub trait DisplayController {
 
     fn apply_write_settings(
         &mut self,
-        validate: bool,
-        get_diff: bool,
+        only_write_on_diff: bool,
     ) -> Result<Option<Vec<SettingDiff>>, ExecuteSettingsError>;
     //  {
     //     let mut diffs = Vec::new();

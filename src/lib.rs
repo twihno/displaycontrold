@@ -100,7 +100,7 @@ pub fn apply_settings(settings: Vec<WriteUserSettings>) {
             }
 
             // Apply the settings
-            if let Err(e) = controller.apply_write_settings(setting.validate, false) {
+            if let Err(e) = controller.apply_write_settings(false) {
                 eprintln!(
                     "{}Failed to apply settings: {}",
                     get_screen_label_prefix(&setting.label, screen_number),

@@ -8,7 +8,8 @@ license = "Mozilla Public License 2.0 (MPL-2.0)"
 
 [lints.clippy]
 pedantic = "forbid"
-
+missing_docs = "forbid"
+missing_docs_in_private_items = "forbid"
 
 [dependencies]
 clap = { version = "4.5.60", features = [
